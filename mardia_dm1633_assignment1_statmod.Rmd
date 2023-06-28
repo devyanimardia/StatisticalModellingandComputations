@@ -1,0 +1,122 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r}
+if (!require("tidyverse")) install.packages("tidyverse")
+if (!require("KMsurv")) install.packages("KMsurv")
+if (!require("survival")) install.packages("survival")
+
+library(KMsurv)
+library(survival) 
+```
+
+```{r}
+data(pneumon)
+
+pneumon <- pneumon %>% arrange(desc(chldage))
+head(pneumon)
+
+```
+#Creating censor variable in pneumon dataset
+```{r}
+censor=pneumon$chldage
+censor=ifelse(censor >=12,0,1)
+table(pneumon$chldage,censor)
+
+head(pneumon)
+pneumon['status'] <- ifelse(pneumon$chldage>=12,0,1)
+head(pneumon)
+```
+# Part A
+ a) Plot the Kaplan-Meier estimator for the survival (not having pneumonia) function for chldage (age at pneumonia). 
+
+```{r}
+fit.surv <- survfit(Surv(pneumon$chldage, pneumon$status) ~ 1)
+plot(fit.surv, xlab = "Months",
+    ylab = "Estimated Probability of not getting pneumonia",
+    col = c(3,6))
+```
+#Give an estimate and a confidence interval for a newborn not having developed pneumonia at 6 months.
+
+```{r}
+summary(fit.surv, times = c(6))
+```
+From above summary at 6 months, the estimate of survival would be 0.801 with a confidence interval of 0.788(lower CI)-0.814(upperCI)
+
+# Part b
+
+Use the survfit function to stratify survival by poverty (Mother at poverty)
+
+```{r}
+fit.pov <- survfit(Surv(pneumon$chldage, pneumon$status) ~ pneumon$poverty)
+
+fit.pov
+```
+  b) Generate the survival curves by poverty (1=yes 0=no) and perform the log-rank test
+```{r}
+plot (fit.pov , xlab = " Months ",
+ylab = " Est. Prob. of Survival ", col = c(3,6))
+
+logrank.test <- survdiff(Surv(pneumon$chldage, pneumon$status) ~ pneumon$poverty)
+logrank.test
+
+```
+
+```{r}
+#Poverty variable is an int in the dataset but can be used as a factor/categorical value, all calculations are done without converting into factors 
+
+#pneumon$poverty <- as.integer(pneumon$poverty)
+
+#fit.poverty1 <- survfit(Surv(pneumon$chldage, pneumon$status) ~ pneumon$poverty)
+#summary(fit.poverty1)
+#plot(fit.poverty1, xlab = "Months",
+#     ylab = "Estimated Probability of not getting pneumonia using poverty as int", col = c(3,6))
+
+#pneumon$poverty <- as.factor(pneumon$poverty)
+
+#fit.poverty2 <- survfit(Surv(pneumon$chldage, pneumon$status) ~ pneumon$poverty)
+#summary(fit.poverty2)
+#plot(fit.poverty2, xlab = "Months",
+#    ylab = "Estimated Probability of not getting pneumonia using poverty as factors", col = c(3,6))
+
+```
+#part c
+#Fit the Cox proportional hazards model that includes only poverty as a covariate use ties='breslow' option
+
+```{r}
+#Fit the Cox proportional hazards model that includes only poverty as a covariate use ties='breslow' option
+
+#without ties
+fit.coxbasic <- coxph(Surv(pneumon$chldage, pneumon$status) ~ pneumon$poverty)
+summary(fit.coxbasic) 
+fit.coxbasic
+```
+#Is there a difference in survival between poverty levels (yes or no)
+
+
+```{r}
+#with ties
+
+fit.coxties <- coxph(Surv(pneumon$chldage, pneumon$status) ~ pneumon$poverty, ties = "breslow")
+summary(fit.coxties) 
+fit.coxties
+
+```
+No, there is no difference hence no clear evidence for a difference in survival due to pneumonia between poverty groups with even using ties.
+
+```{r}
+#Fit a Cox proportional hazards model that includes 
+# mthage, urban, alcohol, smoke, region, poverty, bweight, race, and education as predictors. use ties='breslow' option
+fit.coxmultiplepred <- coxph(Surv(chldage, status) ~ mthage + urban + alcohol + smoke + region + poverty + bweight + race + education, data = pneumon, ties = "breslow")
+summary(fit.coxmultiplepred) 
+fit.coxmultiplepred
+
+
+# List the significant predictors.
+
+```
+# Ans The significant predictors are mother age, smoke

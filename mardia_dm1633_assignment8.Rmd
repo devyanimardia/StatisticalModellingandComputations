@@ -1,0 +1,56 @@
+---
+title: "assignment8"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-03-31"
+---
+
+
+```{r}
+library(MASS)
+library(faraway)
+library(dplyr)
+library(pls)
+```
+
+```{r}
+##HW08: Use Lab11_PCR_PLS.R as a guide to perform Partial Least Squares Regression on the fatinmeat data set using all 215 observations and the first 50 predictors (V1-V50). Recall the response variable is named fat. You do not need to build training and test data sets. 
+
+
+
+data(meatspec)
+```
+
+```{r}
+meat_data <- meatspec[, 1:50]
+meat_data$fat = meatspec$fat
+```
+
+```{r}
+#a. Generate a Cross Validation plot using MSEP on the Y-axis and the number of components ranging from 1 to 20 on the X axis. Based on your plot, how many components would you choose for a Partial Least Squares Regression?
+
+
+pls_fit = plsr(fat~., data = meat_data, center=TRUE,scale = TRUE, validation = "CV", ncomp = 20)
+summary(pls_fit)
+```
+
+
+```{r}
+validationplot(pls_fit, val.type = "MSEP")
+#13 seems to be an ideal choice
+```
+
+```{r}
+pls_pred = predict(pls_fit, meat_data, ncomp = 13)
+```
+
+
+```{r}
+#b. Report the MSEP for the Partial Least Squares Regression based on the number of components you chose.
+
+mean((pls_pred - meat_data$fat)^2)
+
+#MSEP= 3.620094
+```
+

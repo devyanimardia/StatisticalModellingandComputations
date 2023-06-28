@@ -1,0 +1,30 @@
+```{r}
+
+library(markovchain)
+library(expm) #allows you to perform A%^%x matrix multiplications
+
+
+statesNames = c("S1","S2","S3")
+tmatrix=matrix(c(0.5,0.5,0,0,0.5,0.5,0.5,0,0.5),
+ nrow = 3, ncol = 3, byrow = TRUE,dimnames=list(statesNames,statesNames))
+tmatrix
+mcC = new("markovchain", transitionMatrix =tmatrix) #once you are in state S4, you will stay there
+is.irreducible(mcC)
+period(mcC)
+
+#True represents that the transition matrix is Irreducible
+#The period being 1 represents it is aperiodic, if it was greater than 1 it would be periodic
+#Hence the transition matrix is irreducible and aperiodic.
+
+```
+
+```{r}
+#Define a intial state of pi
+pi=matrix(c(0.34,0.33,0.33),byrow=TRUE,ncol=3)
+pi%*%(tmatrix%^%100)
+pi%*%(tmatrix%^%1000)
+
+#We can see that this is the stationary distribution of transition matrix
+
+```
+

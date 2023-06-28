@@ -1,0 +1,544 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+## For Missing data analysis and imputations:
+
+
+
+```{r}
+library(vdemdata)
+library(mice)
+library(VIM)
+library(naniar)
+library(UpSetR)
+library(tidyr)
+library(missMethods)
+data <- vdem
+```
+
+```{r}
+head(data)
+
+High_Level_Indices <- data[c("v2x_polyarchy","v2x_libdem","v2x_partipdem","v2x_delibdem","v2x_egaldem")]
+colnames(High_Level_Indices) <- c("Electoral","Liberal","Participatory","Deliberate","Egalitarian")
+
+```
+
+
+### v2x_polyarchy has 1282 Missing Values
+### v2x_libdem has 2421 
+### v2x_partipdem has 1894
+### v2x_delibdem has 8426
+### v2x_egaldem has 8425
+
+
+### Visualizing the Missing data
+```{r}
+patt <- md.pattern(High_Level_Indices,rotate.names = TRUE)
+
+marginplot(High_Level_Indices[c(2,5)])
+
+vis_miss(High_Level_Indices)
+
+gg_miss_upset(High_Level_Indices)
+
+gg_miss_span(High_Level_Indices,Electoral,span_every = 1000)
+
+
+```
+
+
+
+### Testing the type of Missingness
+```{r}
+mcar_test(High_Level_Indices)
+
+```
+
+
+### Imputing the values
+```{r}
+
+Testing <- High_Level_Indices %>%
+  drop_na()
+
+Training <- delete_MCAR(Training,0.3,"Egalitarian")
+
+sum(is.na(Training$Liberal))
+
+?mice
+
+```
+
+```{r}
+# Run mice with different methods
+imp1 <- mice(Training, method = "pmm", m = 5, maxit = 10)
+imp2 <- mice(Training, method = "rf", m = 5, maxit = 10)
+imp3 <- mice(Training, method = "norm", m = 5, maxit = 10)
+```
+
+
+```{r}
+# Completing the dataset using of the imputation
+Training_1 <- complete(imp1,1)
+Training_2 <- complete(imp2,1)
+Training_3 <- complete(imp3,1)
+```
+
+
+```{r}
+
+# Calculating the Errors ==> Sum of Squared Error
+sum((Training_1$Electoral-Testing$Electoral)^2+(Training_1$Electoral-Testing$Electoral)^2+(Training_1$Deliberate-Testing$Deliberate)^2+(Training_1$Participatory-Testing$Participatory)^2+(Training_1$Liberal-Testing$Liberal)^2+(Training_1$Egalitarian-Testing$Egalitarian)^2)
+sum((Training_2$Electoral-Testing$Electoral)^2+(Training_2$Electoral-Testing$Electoral)^2+(Training_2$Deliberate-Testing$Deliberate)^2+(Training_2$Participatory-Testing$Participatory)^2+(Training_2$Liberal-Testing$Liberal)^2+(Training_3$Egalitarian-Testing$Egalitarian)^2)
+sum((Training_3$Electoral-Testing$Electoral)^2+(Training_3$Electoral-Testing$Electoral)^2+(Training_3$Deliberate-Testing$Deliberate)^2+(Training_3$Participatory-Testing$Participatory)^2+(Training_3$Liberal-Testing$Liberal)^2+(Training_3$Egalitarian-Testing$Egalitarian)^2)
+
+```
+
+```{r}
+# Calculating the Errors ==> Mean absolute error
+mean(abs(Training_1$Electoral-Testing$Electoral)+abs(Training_1$Electoral-Testing$Electoral)+abs(Training_1$Deliberate-Testing$Deliberate)+abs(Training_1$Participatory-Testing$Participatory)+abs(Training_1$Liberal-Testing$Liberal)+abs(Training_1$Egalitarian-Testing$Egalitarian))
+mean(abs(Training_2$Electoral-Testing$Electoral)+abs(Training_2$Electoral-Testing$Electoral)+abs(Training_2$Deliberate-Testing$Deliberate)+abs(Training_2$Participatory-Testing$Participatory)+abs(Training_2$Liberal-Testing$Liberal)+abs(Training_3$Egalitarian-Testing$Egalitarian))
+mean(abs(Training_3$Electoral-Testing$Electoral)+abs(Training_3$Electoral-Testing$Electoral)+abs(Training_3$Deliberate-Testing$Deliberate)+abs(Training_3$Participatory-Testing$Participatory)+abs(Training_3$Liberal-Testing$Liberal)+abs(Training_3$Egalitarian-Testing$Egalitarian))
+
+```
+
+
+
+```{r}
+# Now comparing the methods with plots
+imp1 <- mice(High_Level_Indices, method = "pmm", m = 5, maxit = 10)
+imp2 <- mice(High_Level_Indices, method = "rf", m = 5, maxit = 10)
+imp3 <- mice(High_Level_Indices, method = "norm", m = 5, maxit = 10)
+
+
+```
+
+
+```{r}
+### density plot
+densityplot(imp3)
+```
+
+
+```{r}
+### Strip plot
+stripplot(imp3)
+
+```
+
+
+```{r}
+### Predictive model
+
+
+model_fit <- with(data=imp3, exp=lm(Electoral ~ Liberal + Participatory + Deliberate + Egalitarian))
+```
+
+
+```{r}
+
+# Pool the results
+model_summary <- summary(pool(model_fit))
+```
+
+
+```{r}
+# Display the results
+print(model_summary)
+```
+
+
+
+
+```{r}
+## Code for survival analysis
+
+
+library(vdemdata)
+library(dplyr)
+library(countrycode)
+library(ggplot2)
+library(ggfortify)
+library(survival)
+library(tidyr)
+```
+
+
+```{r}
+
+data <- vdem
+data$continent <- countrycode(data$country_text_id, "iso3c", "continent")
+```
+
+
+################################################################################
+## SURVIVAL ANALYSIS DATA CLEANING
+################################################################################
+
+
+```{r}
+country_list <- unique(data$country_name[data$v2svindep == 1 & data$year == 2022])
+country_notlist <- unique(data$country_name[data$v2svindep == 1 & data$year == 1789])
+
+subset_data <- data[data$country_name %in% country_list & !(data$country_name %in% country_notlist), ]
+
+subset_data <- subset_data %>%
+  group_by(country_name) %>%
+  mutate(lastYearDependent = ifelse(any(v2svindep != 1),
+                                    max(year[v2svindep != 1]),
+                                    min(year[v2svindep == 1]) - 1),
+         firstYearIndependent = ifelse(year > lastYearDependent,
+                                       min(year[year > lastYearDependent]),
+                                       NA))
+
+subset_data$lastYearDependent = subset_data$firstYearIndependent - 1
+
+subset_data$yearsSinceIndependence = subset_data$year - subset_data$lastYearDependent
+
+unique(subset_data$country_name)
+
+subset_data <- subset(subset_data, !is.na(yearsSinceIndependence))
+subset_data$continent
+
+noNA_data <- subset_data[, c("continent", names(subset_data)[colSums(is.na(subset_data)) == 0])]
+```
+
+
+```{r}
+# Create a vector of column names to exclude
+exclude_cols <- c("project", "historical", "codingstart", "codingend", 
+                  "codingstart_contemp", "codingend_contemp", "gap_index", 
+                  "COWcode", "v2xcl_rol", "v2xcl_rol_codelow", "v2xcl_rol_codehigh",
+                  "v2xcl_rol_sd", "v2xeg_eqprotec", "v2xeg_eqprotec_codelow",
+                  "v2xeg_eqprotec_codehigh", "v2xeg_eqprotec_sd", "v2xeg_eqaccess",
+                  "v2xeg_eqaccess_codelow", "v2xeg_eqaccess_codehigh", "v2xeg_eqaccess_sd",
+                  "v2elreggov", "v2ellocgov", "v2exrmhsol_1", "v2exrmhsol_2", "v2exrmhsol_3", 
+                  "v2exrmhsol_4", "v2exrmhsol_5", "v2exrmhsol_6", "v2exrmhsol_7", 
+                  "v2exrmhsol_nr", "v2ex_legconhog", "v2ex_legconhos", "v2juaccnt",
+                  "v2juaccnt_codelow", "v2juaccnt_codehigh", "v2juaccnt_sd", 
+                  "v2juaccnt_osp", "v2juaccnt_osp_codelow", "v2juaccnt_osp_codehigh",
+                  "v2juaccnt_osp_sd", "v2juaccnt_ord", "v2juaccnt_ord_codelow", 
+                  "v2juaccnt_mean", "v2juaccnt_nr", "v2juaccnt_ord_codehigh",
+                  "v2cltort", "v2cltort_codelow", "v2cltort_codehigh", "v2cltort_sd",
+                  "v2cltort_osp", "v2cltort_osp_codelow", "v2cltort_osp_codehigh","v2cltort_osp_sd",
+                  "v2cltort_ord", "v2cltort_ord_codelow", "v2cltort_ord_codehigh", "v2cltort_mean",
+                  "v2cltort_nr", "v2clslavef"             
+                  ,"v2clslavef_codelow"      ,"v2clslavef_codehigh"  ,   "v2clslavef_sd" ,          "v2clslavef_osp"         
+                  ,"v2clslavef_osp_codelow" , "v2clslavef_osp_codehigh" ,"v2clslavef_osp_sd"      , "v2clslavef_ord"         
+                  ,"v2clslavef_ord_codelow" , "v2clslavef_ord_codehigh" ,"v2clslavef_mean"        , "v2clslavef_nr",
+                  "v2clacjstm_codelow"  ,    "v2clacjstm_codehigh"    , "v2clacjstm_sd"     ,      "v2clacjstm_osp"         
+                  ,"v2clacjstm_osp_codelow" , "v2clacjstm_osp_codehigh", "v2clacjstm_osp_sd"  ,     "v2clacjstm_ord"         
+                  ,"v2clacjstm_ord_codelow" , "v2clacjstm_ord_codehigh" ,"v2clacjstm_mean",         "v2clacjstm_nr",
+                  "v2clacjstw_codelow"     , "v2clacjstw_codehigh"     ,"v2clacjstw_sd"   ,       
+                  "v2clacjstw_osp"         , "v2clacjstw_osp_codelow"  ,"v2clacjstw_osp_codehigh", "v2clacjstw_osp_sd"      
+                  ,"v2clacjstw_ord"         , "v2clacjstw_ord_codelow"  ,"v2clacjstw_ord_codehigh" ,"v2clacjstw_mean"        
+                  ,"v2clacjstw_nr", "v2clacjust",              "v2clacjust_codelow" ,     "v2clacjust_codehigh" ,   
+                  "v2clacjust_sd"   ,        "v2clacjust_osp"   ,       "v2clacjust_osp_codelow",  "v2clacjust_osp_codehigh",
+                  "v2clacjust_osp_sd"     ,  "v2clacjust_ord"    ,      "v2clacjust_ord_codelow" , "v2clacjust_ord_codehigh",
+                  "v2clacjust_mean"      ,   "v2clacjust_nr"        ,   "v2clsocgrp"      ,        "v2clsocgrp_codelow"     ,
+                  "v2clsocgrp_codehigh" ,    "v2clsocgrp_sd"      ,     "v2clsocgrp_osp",          "v2clsocgrp_osp_codelow", 
+                  "v2clsocgrp_osp_codehigh", "v2clsocgrp_osp_sd"   ,    "v2clsocgrp_ord" ,         "v2clsocgrp_ord_codelow" ,
+                  "v2clsocgrp_ord_codehigh" ,"v2clsocgrp_mean"      ,   "v2clsocgrp_nr"   ,        "v2clrgunev" ,            
+                  "v2clrgunev_codelow"      ,"v2clrgunev_codehigh"   ,  "v2clrgunev_sd"    ,       "v2clrgunev_osp",         
+                  "v2clrgunev_osp_codelow"  ,"v2clrgunev_osp_codehigh", "v2clrgunev_osp_sd" ,      "v2clrgunev_ord" ,        
+                  "v2clrgunev_ord_codelow"  ,"v2clrgunev_ord_codehigh" ,"v2clrgunev_mean"    ,     "v2clrgunev_nr",
+                  "v2elsuffrage", "v2extithos", "v2exremhsp_codelow", "v2exremhsp_codehigh"  ,   "v2exremhsp_sd" ,          "v2exremhsp_osp"    ,      "v2exremhsp_osp_codelow", 
+                  "v2exremhsp_osp_codehigh", "v2exremhsp_osp_sd" ,      "v2exremhsp_ord" ,         "v2exremhsp_ord_codelow" ,
+                  "v2exremhsp_ord_codehigh" ,"v2exremhsp_mean"    ,     "v2exremhsp_nr" , "v2exhoshog", 
+                  "v2clslavem"    ,"v2clslavem_codelow"  ,    "v2clslavem_codehigh"  ,   "v2clslavem_sd"    ,       "v2clslavem_osp"  ,       
+                  "v2clslavem_osp_codelow" , "v2clslavem_osp_codehigh", "v2clslavem_osp_sd"  ,     "v2clslavem_ord"  ,       
+                  "v2clslavem_ord_codelow" , "v2clslavem_ord_codehigh", "v2clslavem_mean" ,        "v2clslavem_nr",
+                  "v2cldiscw" ,              "v2cldiscw_codelow"  ,    
+                  "v2cldiscw_codehigh"  ,    "v2cldiscw_sd"  ,          "v2cldiscw_osp"      ,     "v2cldiscw_osp_codelow"  ,
+                  "v2cldiscw_osp_codehigh",  "v2cldiscw_osp_sd" ,       "v2cldiscw_ord"       ,    "v2cldiscw_ord_codelow"  ,
+                  "v2cldiscw_ord_codehigh" , "v2cldiscw_mean"    ,      "v2cldiscw_nr",
+                  "v2clacfree" ,"v2clacfree_codelow"  ,    "v2clacfree_codehigh"    , "v2clacfree_sd"     ,      "v2clacfree_osp"       ,  
+                  "v2clacfree_osp_codelow" , "v2clacfree_osp_codehigh" ,"v2clacfree_osp_sd"  ,     "v2clacfree_ord"   ,      
+                  "v2clacfree_ord_codelow" , "v2clacfree_ord_codehigh" ,"v2clacfree_mean"  ,       "v2clacfree_nr",
+                  "v2juncind"      ,         "v2juncind_codelow"   ,   
+                  "v2juncind_codehigh"    ,  "v2juncind_sd"       ,     "v2juncind_osp"    ,       "v2juncind_osp_codelow"  ,
+                  "v2juncind_osp_codehigh" , "v2juncind_osp_sd"    ,    "v2juncind_ord"    ,       "v2juncind_ord_codelow"  ,
+                  "v2juncind_ord_codehigh"  ,"v2juncind_mean"       ,   "v2juncind_nr",
+                  "v2clrelig_codelow"   ,    "v2clrelig_codehigh" ,    
+                  "v2clrelig_sd"     ,       "v2clrelig_osp"    ,       "v2clrelig_osp_codelow" ,  "v2clrelig_osp_codehigh" ,
+                  "v2clrelig_osp_sd"    ,    "v2clrelig_ord"    ,       "v2clrelig_ord_codelow"  , "v2clrelig_ord_codehigh" ,
+                  "v2clrelig_mean"       ,   "v2clrelig_nr" ,
+                  "v2clfmove"    ,           "v2clfmove_codelow" ,      "v2clfmove_codehigh"  ,   
+                  "v2clfmove_sd"  ,          "v2clfmove_osp"      ,     "v2clfmove_osp_codelow",   "v2clfmove_osp_codehigh" ,
+                  "v2clfmove_osp_sd",        "v2clfmove_ord"       ,    "v2clfmove_ord_codelow" ,  "v2clfmove_ord_codehigh" ,
+                  "v2clfmove_mean"   ,       "v2clfmove_nr"         ,   "v2cldmovew"             , "v2cldmovew_codelow"     ,
+                  "v2cldmovew_codehigh",     "v2cldmovew_sd"        ,   "v2cldmovew_osp" ,         "v2cldmovew_osp_codelow" ,
+                  "v2cldmovew_osp_codehigh", "v2cldmovew_osp_sd"     ,  "v2cldmovew_ord"  ,        "v2cldmovew_ord_codelow" ,
+                  "v2cldmovew_ord_codehigh" ,"v2cldmovew_mean"     ,    "v2cldmovew_nr"    ,       "v2clstown"              ,
+                  "v2clstown_codelow"    ,   "v2clstown_codehigh"   ,   "v2clstown_sd"      ,      "v2clstown_osp"          ,
+                  "v2clstown_osp_codelow" ,  "v2clstown_osp_codehigh",  "v2clstown_osp_sd"   ,     "v2clstown_ord"          ,
+                  "v2clstown_ord_codelow"  , "v2clstown_ord_codehigh" , "v2clstown_mean"      ,    "v2clstown_nr"           ,
+                  "v2clprptym"           ,   "v2clprptym_codelow"  ,    "v2clprptym_codehigh"  ,   "v2clprptym_sd"          ,
+                  "v2clprptym_osp"        ,  "v2clprptym_osp_codelow" , "v2clprptym_osp_codehigh", "v2clprptym_osp_sd"      ,
+                  "v2clprptym_ord"        ,  "v2clprptym_ord_codelow",  "v2clprptym_ord_codehigh" ,"v2clprptym_mean"        ,
+                  "v2clprptym_nr"    ,       "v2clprptyw"        ,      "v2clprptyw_codelow"  ,    "v2clprptyw_codehigh"    ,
+                  "v2clprptyw_sd"     ,      "v2clprptyw_osp"     ,     "v2clprptyw_osp_codelow" , "v2clprptyw_osp_codehigh",
+                  "v2clprptyw_osp_sd"  ,     "v2clprptyw_ord"      ,    "v2clprptyw_ord_codelow"  ,"v2clprptyw_ord_codehigh",
+                  "v2clprptyw_mean"     ,    "v2clprptyw_nr"    ,
+                  "v2svdomaut_codelow"  ,    "v2svdomaut_codehigh" ,   
+                  "v2svdomaut_sd"   ,        "v2svdomaut_osp"   ,       "v2svdomaut_osp_codelow",  "v2svdomaut_osp_codehigh",
+                  "v2svdomaut_osp_sd",       "v2svdomaut_ord"    ,      "v2svdomaut_ord_codelow" , "v2svdomaut_ord_codehigh",
+                  "v2svdomaut_mean"   ,      "v2svdomaut_nr"     , "v2svinlaut_codelow"     ,
+                  "v2svinlaut_codehigh",     "v2svinlaut_sd"      ,     "v2svinlaut_osp"     ,     "v2svinlaut_osp_codelow" ,
+                  "v2svinlaut_osp_codehigh", "v2svinlaut_osp_sd"   ,    "v2svinlaut_ord"      ,    "v2svinlaut_ord_codelow" ,
+                  "v2svinlaut_ord_codehigh" ,"v2svinlaut_mean"      ,   "v2svinlaut_nr"  ,
+                  "v2svstterr"             ,
+                  "v2svstterr_codelow" ,     "v2svstterr_codehigh" ,    "v2svstterr_sd"      ,     "v2svstterr_mean" ,       
+                  "v2svstterr_nr"     , "v2pepwrsoc"   ,           "v2pepwrsoc_codelow"   ,  
+                  "v2pepwrsoc_codehigh" ,    "v2pepwrsoc_sd"    ,       "v2pepwrsoc_osp"   ,       "v2pepwrsoc_osp_codelow" ,
+                  "v2pepwrsoc_osp_codehigh", "v2pepwrsoc_osp_sd" ,      "v2pepwrsoc_ord"    ,      "v2pepwrsoc_ord_codelow" ,
+                  "v2pepwrsoc_ord_codehigh" ,"v2pepwrsoc_mean"    ,     "v2pepwrsoc_nr"      ,     "v2xnp_pres"             ,
+                  "v2xnp_pres_codelow"     , "v2xnp_pres_codehigh" ,    "v2xnp_pres_sd",
+                  "v2xnp_regcorr_codelow",  "v2xnp_regcorr_codehigh", "v2xnp_regcorr_sd" ,
+                  "v2x_clpol"     ,         "v2x_clpol_codelow"  ,    "v2x_clpol_codehigh" ,    "v2x_clpol_sd" ,
+                  "v2x_clpriv"       ,      "v2x_clpriv_codelow" ,    "v2x_clpriv_codehigh"  ,  "v2x_clpriv_sd" ,
+                  "v2x_gencl_codelow"    ,  "v2x_gencl_codehigh"    , "v2x_gencl_sd",
+                  "v2xcl_acjst"    ,        "v2xcl_acjst_codelow" ,   "v2xcl_acjst_codehigh",   "v2xcl_acjst_sd",
+                  "v2xcl_prpty"      ,      "v2xcl_prpty_codelow" ,   "v2xcl_prpty_codehigh"  , "v2xcl_prpty_sd", "v2xcl_dmove",
+                  "v2xcl_dmove_codelow",    "v2xcl_dmove_codehigh"  , "v2xcl_dmove_sd" , "v2xcl_slave"       ,
+                  "v2xcl_slave_codelow" ,   "v2xcl_slave_codehigh" , "v2xcl_slave_sd", "v2xel_elecpres" ,
+                  "v2x_feduni", "e_v2x_clpol_3C"    ,     "e_v2x_clpol_4C"   ,      "e_v2x_clpol_5C"    ,    
+                  "e_v2x_clpriv_3C"  ,      "e_v2x_clpriv_4C"  ,      "e_v2x_clpriv_5C"     ,   "e_v2x_feduni_3C"    ,   
+                  "e_v2x_feduni_4C"   ,     "e_v2x_feduni_5C"   ,     "e_v2x_gencl_3C"       ,  "e_v2x_gencl_4C"      ,  
+                  "e_v2x_gencl_5C"     ,    "e_v2x_suffr_3C"     ,    "e_v2x_suffr_4C"        , "e_v2x_suffr_5C"       , 
+                  "e_v2xcl_rol_3C"      ,   "e_v2xcl_rol_4C"      ,   "e_v2xcl_rol_5C"     ,    "e_v2xeg_eqprotec_3C"   ,
+                  "e_v2xeg_eqprotec_4C"  ,  "e_v2xeg_eqprotec_5C"  ,  "e_regiongeo"         ,   "e_regionpol"           ,
+                  "e_regionpol_6C"      
+)
+
+```
+
+
+```{r}
+# Subset the data to exclude the specified columns
+potential_variables <- noNA_data[, !(names(noNA_data) %in% exclude_cols)]
+
+```
+
+
+
+################################################################################
+##  How long first Heads of State last in general
+################################################################################
+
+```{r}
+
+# Subset the dataset to only include countries with more than 1 observation
+potential_variables_subset <- potential_variables[duplicated(potential_variables$country_name) | duplicated(potential_variables$country_name, fromLast = TRUE), ]
+```
+
+
+```{r}
+# Group the data by country_name
+grouped_data <- potential_variables_subset %>% group_by(country_name)
+```
+
+
+```{r}
+
+# Get the value of v2exnamhos at yearsSinceIndependence = 1 for each country_name
+v2exnamhos_at_1 <- grouped_data %>%
+  filter(yearsSinceIndependence == 1) %>%
+  select(country_name, v2exnamhos)
+```
+
+
+```{r}
+# Join the v2exnamhos_at_1 data with the original dataset
+mutated_data <- potential_variables_subset %>%
+  left_join(v2exnamhos_at_1, by = "country_name", suffix = c("", "_at_1")) %>%
+  # Mutate the has_changed_histname variable to indicate whether a country has a different v2exnamhos at yearsSinceIndependence = 1
+  mutate(has_changed_histname = ifelse(v2exnamhos != v2exnamhos_at_1 & yearsSinceIndependence != 1, 1, 0)) %>%
+  ungroup()
+```
+
+
+```{r}
+# Remove rows where has_changed_histname is 1 but there is an earlier yearsSinceIndependence for that country where has_changed_histname is also 1
+final_data <- mutated_data %>%
+  group_by(country_name) %>%
+  filter(!cumsum(has_changed_histname) > 1) %>%
+  ungroup()
+```
+
+
+```{r}
+
+# View the final data
+final_data
+```
+
+```{r}
+
+# Count how many instances of each country_name there are in final data
+table(final_data$country_name)
+```
+
+```{r}
+
+# Create a survival object
+surv_obj <- Surv(final_data$yearsSinceIndependence, final_data$has_changed_histname)
+
+```
+
+```{r}
+
+# Fit a Cox proportional hazards model
+cox_model <- coxph(surv_obj ~ continent, data = final_data)
+```
+
+```{r}
+# View the summary of the model
+summary(cox_model)
+```
+
+
+```{r}
+
+# Compute the overall Kaplan-Meier survival curve
+overall_km <- survfit(surv_obj ~ 1, data = final_data)
+```
+
+
+```{r}
+
+# Plot the Kaplan-Meier curve using ggplot2
+ggplot2_km <- autoplot(overall_km, censor = FALSE, conf.int = TRUE, surv.scale = "percent") +
+  ggtitle("How long does the first leader of a country last?") +
+  xlab("Years") + ylab("Survival Probability")
+
+```
+
+
+```{r}
+# Display the plot
+ggplot2_km
+```
+
+```{r}
+# Compute the overall Kaplan-Meier survival curve
+overall_km <- survfit(surv_obj ~ continent, data = final_data)
+
+```
+
+
+```{r}
+
+# Plot the Kaplan-Meier curve using ggplot2
+ggplot2_km <- autoplot(overall_km, censor = FALSE, conf.int = TRUE, surv.scale = "percent") +
+  ggtitle("How long does the first leader of a country last by continent?") +
+  xlab("Years") + ylab("Survival Probability")
+
+# Display the plot
+ggplot2_km
+
+```
+
+
+
+################################################################################
+## How long Heads of State last in general
+################################################################################
+
+
+```{r}
+# Keep only rows where country_name is in country_list and not in country_notlist
+subset_data <- subset(data, country_name %in% country_list & !country_name %in% country_notlist)
+
+```
+
+```{r}
+
+# Remove any rows where continent is NA
+subset_data <- subset(subset_data, !is.na(continent))
+```
+
+```{r}
+
+# Group the data by v2exnamhos and continent and count the frequency of each combination
+freq_data <- subset_data %>%
+  group_by(v2exnamhos, continent) %>%
+  count()
+
+```
+
+```{r}
+
+# Rename the count column to "frequency"
+freq_data <- rename(freq_data, frequency = n)
+freq_data <- subset(freq_data, v2exnamhos != "[Collective Body]")
+```
+
+
+
+```{r}
+# Step 3: Fit Cox proportional hazards model
+coxph_model <- coxph(Surv(frequency) ~ continent, data = freq_data)
+```
+
+
+```{r}
+# Step 4: Check model assumptions
+cox.zph(coxph_model) # test for proportional hazards assumption
+```
+
+
+```{r}
+# Step 5: Interpret results
+summary(coxph_model) # view coefficients, standard errors, p-values, etc.
+```
+
+
+```{r}
+
+# Compute the overall Kaplan-Meier survival curve
+overall_km <- survfit(Surv(frequency) ~ 1, data = freq_data)
+```
+
+
+```{r}
+# Plot the Kaplan-Meier curve using ggplot2
+ggplot2_km <- autoplot(overall_km, censor = TRUE, conf.int = TRUE, surv.scale = "percent") +
+  ggtitle("How long do all leaders last?") +xlab("Years") + ylab("Survival Probability")
+```
+
+
+```{r}
+
+# Display the plot
+ggplot2_km
+```
+
+
+```{r}
+# Compute the overall Kaplan-Meier survival curve
+overall_km <- survfit(Surv(frequency) ~ continent, data = freq_data)
+
+```
+
+
+```{r}
+
+# Plot the Kaplan-Meier curve using ggplot2
+ggplot2_km <- autoplot(overall_km, censor = TRUE, conf.int = FALSE, surv.scale = "percent") +
+  ggtitle("How long do all leaders last by continent?") +xlab("Years") + ylab("Survival Probability")
+
+```
+
+```{r}
+# Display the plot
+ggplot2_km
+```
+
+
+
+
+

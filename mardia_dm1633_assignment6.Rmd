@@ -1,0 +1,30 @@
+---
+title: "assignment6"
+output: pdf_document
+date: "2023-03-31"
+---
+
+```{r}
+library(MASS)
+library(faraway)
+library(dplyr)
+```
+
+
+```{r}
+##HW06: Use SVD_example.R as a guide to perform a SInguarValueDecomposition of the X matrix from the fatinmeat data set using all 215 observations and the first 50 predictors (V1-V50).  Show the columns of V and the columns of U in your output.
+data(meatspec)
+
+X <- meatspec[, 1:50]
+svd_x <- svd(X)
+
+```
+
+```{r}
+print(svd_x$v)
+```
+
+```{r}
+print(svd_x$u)
+```
+

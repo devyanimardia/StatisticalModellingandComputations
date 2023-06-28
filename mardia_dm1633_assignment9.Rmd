@@ -1,0 +1,68 @@
+---
+title: "assignment9"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-04-14"
+---
+#HW09
+#Use the R programs covered in the MultipleTesting module as a guide for HW09.
+
+#Perform a multiple regression on all 100 predictors from the meatspec dataset in the 
+#faraway package and extract the p-values for the coefficients of the 100 variables.
+
+
+```{r}
+library(faraway)
+data(meatspec,package="faraway")  #the dataset meatspec is found in the faraway package
+
+lmod=lm(fat ~ . , data=meatspec)
+summary(lmod)  
+# Extract p-values for coefficients and exluding the intercept
+p_values <- summary(lmod)$coefficients[-1, 4]
+
+```
+
+```{r}
+p_values
+```
+```{r}
+#Use the p-values vector to list the variables with coefficients that are significantly
+#different from 0 with  
+#a) using no FWER adjustment (alpha=.05 for each test of hypothesis).
+alpha <- 0.05
+print(p_values[p_values < alpha])
+names(p_values[p_values < alpha])
+
+# We reject these 15 features based on the p values
+```
+```{r}
+#b) using the Bonferroni procedure to control the FWER alpha at 0.05.
+#Get adjusted p value
+p_values_bonfadjust <- p.adjust(p_values, method = "bonferroni")
+
+# Identify variables with significant coefficients
+adj_bonferroni <- p_values_bonfadjust[p_values_bonfadjust < alpha]
+
+adj_bonferroni
+names(adj_bonferroni)
+
+# We reject only V1 based on the Bonferroni procedure
+
+```
+```{r}
+
+#c) using the Holm procedure to control the FWER alpha at 0.05.
+
+# Get the adjusted p-val
+p_values_holmadjust <- p.adjust(p_values, method = "holm")
+
+# Identify variables with significant coefficients
+adj_holm <- p_values_holmadjust[p_values_holmadjust < alpha]
+adj_holm
+names(adj_holm)
+
+#We again reject only V1 based on Holm procedure as well
+
+```
+

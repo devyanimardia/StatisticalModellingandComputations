@@ -1,0 +1,213 @@
+---
+title: "HW05"
+output: html_document
+date: "2023-03-03"
+---
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+#HW05.R
+#In this example, the Metropolis-Hastings algorithm does not converge because the 
+#proposal standard deviation is too small. The algorithm proposes very small changes 
+#to theta, which results in a lack of mixing and slow convergence. To improve the 
+#performance of the Metropolis-Hastings algorithm, you can increase the proposal 
+#standard deviation to encourage more exploration of the posterior distribution.
+
+# Define the likelihood function
+likelihood <- function(theta) {
+  return(dnorm(theta[1], mean = 0, sd = 1) * 
+         dnorm(theta[2], mean = theta[1], sd = 1) *
+         dnorm(theta[3], mean = theta[2], sd = 1))
+}
+
+# Define the prior distribution
+prior <- function(theta) {
+  return(dnorm(theta[1], mean = 0, sd = 1) * 
+         dnorm(theta[2], mean = 0, sd = 1) *
+         dnorm(theta[3], mean = 0, sd = 1))
+}
+
+# Define the posterior distribution
+posterior <- function(theta) {
+  return(likelihood(theta) * prior(theta))
+}
+```
+
+
+```{r}
+# Define the Metropolis-Hastings algorithm
+metropolis_hastings <- function(theta_0, iter, proposal_sd) {
+  theta <- theta_0
+  samples <- matrix(numeric(iter * 3), ncol = 3)
+  
+  for (i in 1:iter) {
+    theta_proposed <- theta + rnorm(3, mean = 0, sd = proposal_sd)
+    log_alpha <- log(posterior(theta_proposed)) - log(posterior(theta))
+    if (log(runif(1)) < log_alpha) {
+      theta <- theta_proposed
+    }
+    samples[i, ] <- theta
+  }
+  
+  return(samples)
+}
+```
+
+
+```{r}
+library(coda)
+
+# Run the Metropolis-Hastings algorithm and check for convergence
+set.seed(123)
+samples_1 <- metropolis_hastings(theta_0 = c(0, 0, 0), iter = 5000, proposal_sd = 2.6)
+set.seed(123)
+samples_2 <- metropolis_hastings(theta_0 = c(0, 0, 0), iter = 5000, proposal_sd = 2.65)
+
+# Combine the results and check for convergence
+samples_list <- lapply(1:3, function(x) {
+  as.mcmc(cbind(samples_1[, x], samples_2[, x]))
+})
+
+plot(samples_1[,1])
+plot(samples_1[,2])
+plot(samples_1[,3])
+
+plot(samples_2[,1])
+plot(samples_2[,2])
+plot(samples_2[,3])
+```
+
+
+```{r}
+#Z-score for a test of equality that compares the means of the first and last parts of each chain
+geweke.diag(samples_1[,])
+geweke.diag(samples_2[,])
+
+#Gelman-Rubin Diagnostic
+(diagnostics <- gelman.diag(samples_list)) #need at least two chains to check for convergence
+
+#This will produce the potential scale reduction factor (PSRF) for each parameter, 
+#allowing you to check for convergence of the Metropolis-Hastings algorithm. 
+#If the PSRF is substantially greater than 1.1 for any parameter, it suggests 
+#that the chain has not converged.
+```
+
+
+```{r}
+#Effective Sample Size
+effectiveSize(samples_list)
+
+
+# Part B
+## On changing the std of sample 1 closer to std of sample2, we see decent but not perfect convergence for both chains as gelman rubin has a value of 1.01 and effective sample size is large enough to show the decent convergence for both chains but its not a perfect convergence. Perhaps if we increase the number of iterations it would converge perfectly.
+
+##Part A is given below
+
+```
+
+
+
+
+```{r}
+#HW05.R
+#In this example, the Metropolis-Hastings algorithm does not converge because the 
+#proposal standard deviation is too small. The algorithm proposes very small changes 
+#to theta, which results in a lack of mixing and slow convergence. To improve the 
+#performance of the Metropolis-Hastings algorithm, you can increase the proposal 
+#standard deviation to encourage more exploration of the posterior distribution.
+
+# Define the likelihood function
+likelihood <- function(theta) {
+  return(dnorm(theta[1], mean = 0, sd = 1) * 
+         dnorm(theta[2], mean = theta[1], sd = 1) *
+         dnorm(theta[3], mean = theta[2], sd = 1))
+}
+
+# Define the prior distribution
+prior <- function(theta) {
+  return(dnorm(theta[1], mean = 0, sd = 1) * 
+         dnorm(theta[2], mean = 0, sd = 1) *
+         dnorm(theta[3], mean = 0, sd = 1))
+}
+
+# Define the posterior distribution
+posterior <- function(theta) {
+  return(likelihood(theta) * prior(theta))
+}
+```
+
+
+```{r}
+# Define the Metropolis-Hastings algorithm
+metropolis_hastings <- function(theta_0, iter, proposal_sd) {
+  theta <- theta_0
+  samples <- matrix(numeric(iter * 3), ncol = 3)
+  
+  for (i in 1:iter) {
+    theta_proposed <- theta + rnorm(3, mean = 0, sd = proposal_sd)
+    log_alpha <- log(posterior(theta_proposed)) - log(posterior(theta))
+    if (log(runif(1)) < log_alpha) {
+      theta <- theta_proposed
+    }
+    samples[i, ] <- theta
+  }
+  
+  return(samples)
+}
+```
+
+
+```{r}
+library(coda)
+
+# Run the Metropolis-Hastings algorithm and check for convergence
+set.seed(123)
+samples_1 <- metropolis_hastings(theta_0 = c(0, 0, 0), iter = 5000, proposal_sd = 0.001)
+set.seed(123)
+samples_2 <- metropolis_hastings(theta_0 = c(0, 0, 0), iter = 5000, proposal_sd = 3.000)
+
+# Combine the results and check for convergence
+samples_list <- lapply(1:3, function(x) {
+  as.mcmc(cbind(samples_1[, x], samples_2[, x]))
+})
+
+plot(samples_1[,1])
+plot(samples_1[,2])
+plot(samples_1[,3])
+
+plot(samples_2[,1])
+plot(samples_2[,2])
+plot(samples_2[,3])
+```
+
+
+```{r}
+#Z-score for a test of equality that compares the means of the first and last parts of each chain
+geweke.diag(samples_1[,])
+geweke.diag(samples_2[,])
+
+#Gelman-Rubin Diagnostic
+(diagnostics <- gelman.diag(samples_list)) #need at least two chains to check for convergence
+
+#This will produce the potential scale reduction factor (PSRF) for each parameter, 
+#allowing you to check for convergence of the Metropolis-Hastings algorithm. 
+#If the PSRF is substantially greater than 1.1 for any parameter, it suggests 
+#that the chain has not converged.
+```
+
+
+```{r}
+#Effective Sample Size
+effectiveSize(samples_list)
+
+
+# Part A
+## Using the Geweke, Maybe reasonably converged for chain 2 as z score is less than 2, however one of the variable of chain 1 has a z score greater than 5 meaning that chain 1 has not converged.
+## Using the gelman-rubin we see from the values chain 2 has converged decently but chain 1 has not converged as the value is greater than 1.
+
+```

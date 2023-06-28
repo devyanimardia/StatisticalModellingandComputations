@@ -1,0 +1,255 @@
+---
+title: "assignment2"
+output: pdf_document
+date: "2023-02-15"
+---
+
+Running the file provided by Professor first and then starting with assignment 02
+
+```{r}
+#HW02.R
+#run a lasso and elastic net model
+library(survival)
+library(coxed)
+library(glmnet)
+library(corrplot)
+```
+
+
+```{r}
+#Simulate time-to-event data
+set.seed(123)
+n <- 1000
+
+x1 = matrix(rbinom(n * 10, size = 1, prob = 0.3), n, 10)
+
+x2 = matrix(rnorm(n * 10,mean=0,sd=.4),n,10)
+
+simdata <- sim.survdata(N=n,T=365, censor=0.15, 
+                        beta = c(0.4, 0.4, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0,
+                                 0.4, 0.4, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0), 
+                        X = cbind(x1,x2))
+
+data <- simdata$data
+attach(data)
+
+setwd("~/StatisticalModelingandComputing/")
+#save graphics output in pdf - saves graph(s) in working directory
+ pdf(file="HW02_out.pdf")
+```
+
+
+```{r}
+cormat <- round(cor(data[,1:20]),2)
+cormat #the correlation coefficients among the predictors are small
+corrplot(cormat,type="upper")
+```
+
+
+```{r}
+model <- coxph(Surv(y, failed) ~ ., data=data)
+model$coefficients ## model-estimated coefficients
+summary(model)
+```
+
+
+```{r}
+# Perform survival analysis using glmnet
+
+
+# Perform survival analysis using glmnet
+# assuming the predictors are in the first p columns and the response is in the last two columns
+p <- ncol(data) - 2
+p
+
+xmatrix=as.matrix(data[,1:p])
+show_fit=glmnet(xmatrix,Surv(y, failed),standardize=TRUE,lambda=seq(0,0.25,.001),alpha=1,family = "cox")
+#print(show_fit)
+
+plot(show_fit,label=TRUE)
+plot(show_fit,xvar = "lambda",label=TRUE)
+```
+
+
+```{r}
+#show the use of the CV metric "Partial Likelihood Deviance"
+surv_model <- cv.glmnet(xmatrix,Surv(y, failed), family = "cox", type.measure = "deviance",alpha=1,nfolds = 10)
+plot(surv_model)
+print(surv_model)
+```
+
+
+```{r}
+# Extract the optimal lambda value at lambda.1se
+lambda_opt <- surv_model$lambda.1se
+
+# Fit the model using the optimal lambda value
+fit <- glmnet(xmatrix,Surv(y, failed), family = "cox", type.measure = "deviance",alpha=1,lambda = lambda_opt)
+coef(fit)
+```
+
+
+```{r}
+# Make predictions
+predictions <- predict(fit, newx = xmatrix[,1:p], type = "response")
+
+# Evaluate the model performance using concordance index (c-index)
+c_index <- Cindex(predictions,Surv(y, failed))
+c_index
+```
+
+
+```{r}
+#show the use of CV metric "C" 
+surv_model_C = cv.glmnet(xmatrix,Surv(y, failed), family = "cox", type.measure = "C", alpha=1,nfolds = 10)
+plot(surv_model_C)
+print(surv_model_C)
+```
+
+
+```{r}
+# Extract the optimal lambda value at lambda.1se
+lambda_opt <- surv_model_C$lambda.1se
+
+# Fit the model using the optimal lambda value
+fit_C <- glmnet(xmatrix,Surv(y, failed), family = "cox", type.measure = "C",alpha=1,lambda = lambda_opt)
+coef(fit_C)
+```
+
+
+```{r}
+# Make predictions
+predictions <- predict(fit_C, newx = xmatrix[,1:p], type = "response")
+# Evaluate the model performance using concordance index (c-index)
+c_index <- Cindex(predictions,Surv(y, failed))
+c_index
+```
+
+
+Assignment 2
+
+a. Redo the simulation where you select 5 of the X coefficients among the binary X's to be 0 and 5 of the X coefficients among the normally distributed X's to be 0.
+
+Note: just modify the line in the program:    beta = c(0.4, 0.4, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0,
+                                                                                         0.4, 0.4, 0.5, 0.5, 0.5, 0, 0, 0, 0, 0), 
+
+Generate the text output and the graphical output to answer parts b - f below.
+
+
+```{r}
+#Simulate time-to-event data
+set.seed(123)
+n <- 1000
+
+x1 = matrix(rbinom(n * 10, size = 1, prob = 0.3), n, 10)
+
+x2 = matrix(rnorm(n * 10,mean=0,sd=.4),n,10)
+
+simdata <- sim.survdata(N=n,T=365, censor=0.15, 
+                        beta = c(0, 0.4, 0.5, 0, 0.5, 0, 0.4, 0.4, 0, 0.5, 
+                                 0.5, 0, 0, 0, 0.4, 0, 0.5, 0.5, 0, 0),
+                        X = cbind(x1,x2))
+
+data <- simdata$data
+
+```
+
+```{r}
+cormat <- round(cor(data[,1:20]),2)
+cormat #the correlation coefficients among the predictors are small
+corrplot(cormat,type="upper")
+```
+```{r}
+model <- coxph(Surv(y, failed) ~ ., data=data)
+model$coefficients ## model-estimated coefficients
+summary(model)
+```
+```{r}
+# Perform survival analysis using glmnet
+
+
+# Perform survival analysis using glmnet
+# assuming the predictors are in the first p columns and the response is in the last two columns
+p <- ncol(data) - 2
+xmatrix=as.matrix(data[,1:p])
+show_fit=glmnet(xmatrix,Surv(data$y, data$failed),standardize=TRUE,lambda=seq(0,0.25,.001),alpha=1,family = "cox")
+#print(show_fit)
+```
+
+```{r}
+plot(show_fit,label=TRUE)
+plot(show_fit,xvar = "lambda",label=TRUE) 
+```
+b. Did the Lasso proportional hazards model correctly select the 10 significant predictors using the partial likelihood deviance metric? Comment.
+
+```{r}
+#show the use of the CV metric "Partial Likelihood Deviance"
+surv_model <- cv.glmnet(xmatrix,Surv(data$y, data$failed), family = "cox", type.measure = "deviance",alpha=1,nfolds = 10)
+plot(surv_model)
+print(surv_model)
+```
+```{r}
+# Extract the optimal lambda value at lambda.1se
+lambda_opt <- surv_model$lambda.1se
+
+# Fit the model using the optimal lambda value
+fit <- glmnet(xmatrix,Surv(data$y, data$failed), family = "cox", type.measure = "deviance",alpha=1,lambda = lambda_opt)
+coef(fit)
+```
+All the 10 significant predictors were selected by using partial likelihood deviance without penalizing any coefficient to 0.
+
+c. What is the C-index for the optimal lambda chosen to be Lambda.1se using the partial likelihood deviance metric?
+
+```{r}
+# Make predictions
+predictions <- predict(fit, newx = xmatrix[,1:p], type = "response")
+
+# Evaluate the model performance using concordance index (c-index)
+c_index <- Cindex(predictions,Surv(data$y, data$failed))
+c_index
+```
+
+The C-index using likelihood deviance metric is 0.6697602
+
+
+d. Did the Lasso proportional hazards model correctly select the 10 significant predictors using Cross Validation with the C-index metric? Comment.
+
+```{r}
+#show the use of CV metric "C" 
+surv_model_C = cv.glmnet(xmatrix,Surv(data$y, data$failed), family = "cox", type.measure = "C", alpha=1,nfolds = 10)
+plot(surv_model_C)
+print(surv_model_C)
+```
+
+
+```{r}
+# Extract the optimal lambda value at lambda.1se
+lambda_opt <- surv_model_C$lambda.1se
+
+# Fit the model using the optimal lambda value
+fit_C <- glmnet(xmatrix,Surv(data$y, data$failed), family = "cox", type.measure = "C",alpha=1,lambda = lambda_opt)
+coef(fit_C)
+```
+Using CV all 10 significant predictors were selected without penalizing any coefficient to 0.
+
+e.  What is the C-index for the optimal lambda chosen to be Lambda.1se using the C-index metric? 
+
+```{r}
+# Make predictions
+predictions <- predict(fit_C, newx = xmatrix[,1:p], type = "response")
+# Evaluate the model performance using concordance index (c-index)
+c_index <- Cindex(predictions,Surv(data$y, data$failed))
+c_index
+```
+The C-index using C-index metric is 0.6673913
+
+f. Comment using just 1 sentence on the size of the correlations between pairs of the predictors.
+
+Correlation between the pairs of predictors is small as its smaller than 1 and not very different than 0.6
+
+
+```{r}
+detach(data)
+##------------------------------------------------------------------##
+```
+

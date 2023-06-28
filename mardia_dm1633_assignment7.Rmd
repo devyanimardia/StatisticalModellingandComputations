@@ -1,0 +1,99 @@
+---
+title: "Stat Modeling and Computing Assignment 7"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+library(MASS)
+library(faraway)
+library(dplyr)
+library(pls)
+```
+
+```{r}
+##HW07: Use PCAfatinmeat.R as a guide to perform Principal Component Analysis using all 215 observations and the first 50 predictors (V1-V50) from the fatinmeat data set. You do not need to build training and test data sets.
+
+
+data(meatspec)
+```
+
+```{r}
+meat_data <- meatspec[, 1:50]
+```
+
+```{r}
+meatpca = prcomp(meat_data)
+```
+
+
+```{r}
+#a) Show the SCREE plot. How many components would you extract based on the SCREE plot.
+
+plot(meatpca$sdev[1:10], type = "l", xlab="No. of PCs", ylab = "SD of PC", main = "Scree Plot")
+points(1:10, meatpca$sdev[1:10])
+
+# Based on the scree plot I would use 3 components
+```
+
+
+```{r}
+##b) Perform a multiple regression on all 50 predictors and report the rmse from the overall model.
+
+meat_data$fat = meatspec$fat
+```
+
+```{r}
+lm_model <- lm(fat ~ ., data = meat_data)
+```
+
+```{r}
+rmse = function(x,y) sqrt(mean((x-y)^2))
+rmse(fitted(lm_model), meat_data$fat)
+
+#RMSE = 1.528491
+```
+
+```{r}
+#c) Perform a Principal Component Regression using all 50 components. How many components are selected based on a Cross-Validation with the RMSEP criterion? What is RMSE from the Principal Component Regression on the number of components selected?
+set.seed(10) 
+
+
+pcrmod_1 = pcr(fat ~ ., data=meat_data)
+```
+
+```{r}
+ypred = predict(pcrmod_1, meat_data)
+rmse(ypred, meat_data$fat)  
+```
+
+```{r}
+pcrmod = pcr(fat ~ ., data=meat_data, validation="CV", ncomp=50)
+```
+
+```{r}
+pcrCV = RMSEP(pcrmod, estimate="CV")
+```
+
+```{r}
+pcrCV
+```
+
+
+```{r}
+which.min(pcrCV$val[-1])
+
+#25 components are selected
+```
+
+```{r}
+ypred = predict(pcrmod, meat_data, ncomp=25)
+```
+
+```{r}
+rmse(ypred, meat_data$fat)  
+
+#RMSE = 1.799395
+```
+

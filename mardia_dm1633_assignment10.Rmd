@@ -1,0 +1,28 @@
+---
+title: "assignment10"
+output: pdf_document
+date: "2023-04-14"
+---
+
+```{r}
+library(faraway)
+data(meatspec,package="faraway")
+df <- meatspec
+lmod=lm(fat ~ . , data=df)
+summary(lmod)  
+# Extract p-values for coefficients
+p_values <- summary(lmod)$coefficients[-1, 4]
+
+```
+```{r}
+p_values
+```
+```{r}
+# Getting adjusted p values using Benjamini-Hochberg procedure
+p_values_adjustBH <- p.adjust (p_values , method = "BH")
+
+# Applying FDR value = 0.2
+p_values_adjustBH[p_values_adjustBH <= 0.2]
+names(p_values_adjustBH[p_values_adjustBH <= 0.2])
+```
+
